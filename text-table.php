@@ -1,88 +1,197 @@
-<?
+<?php
+/**
+ * Array to Text Table Generation Class
+ *
+ * @author Tony Landis <tony@tonylandis.com>
+ * @link http://www.tonylandis.com/
+ * @copyright Copyright (C) 2006-2009 Tony Landis
+ * @license http://www.opensource.org/licenses/bsd-license.php
+ */
+class ArrayToTextTable
+{
+    /** 
+     * @var array The array for processing
+     */
+    private $rows;
 
-/*
-//////////////////////////////////////////////////////
-// FUNCTION: draw_text_table ($table)
-// Accepts an array ($table) and returns a text table
-// Array must be of the form:
+    /** 
+     * @var int The column width settings
+     */
+    private $cs = array();
 
-$table[1]['id']       = '1';
+    /**
+     * @var int The Row lines settings
+     */
+    private $rs = array();
 
-$table[1]['make']     = 'Citroen';
-$table[1]['model']    = 'Saxo';
-$table[1]['version']  = '1.4 West Coast';
+    /**
+     * @var int The Column index of keys
+     */
+    private $keys = array();
 
-$table[2]['id']       = '2';
-$table[2]['make']     = 'Honda';
-$table[2]['model']    = 'Civic';
-$table[2]['version']  = '1.6 VTi';
+    /**
+     * @var int Max Column Height (returns)
+     */
+    private $mH = 2;
 
-$table[3]['id']       = '3';
+    /**
+     * @var int Max Row Width (chars)
+     */
+    private $mW = 30;
 
-$table[3]['make']     = 'BMW';
-$table[3]['model']    = '3 Series';
-$table[3]['version']  = '328 Ci';
-
-//////////////////////////////////////////////////////
-*/
-
-function draw_text_table ($table) {
+    private $head  = false;
+    private $pcen  = "+";
+    private $prow  = "-";
+    private $pcol  = "|";
     
-    // Work out max lengths of each cell
-
-    foreach ($table AS $row) {
-        $cell_count = 0;
-        foreach ($row AS $key=>$cell) {
-            $cell_length = strlen($cell);
-
-            $cell_count++;
-            if (!isset($cell_lengths[$key]) || $cell_length > $cell_lengths[$key]) $cell_lengths[$key] = $cell_length;
-
-        }    
+    
+    /** Prepare array into textual format
+     *
+     * @param array $rows The input array
+     * @param bool $head Show heading
+     * @param int $maxWidth Max Column Height (returns)
+     * @param int $maxHeight Max Row Width (chars)
+     */
+    public function ArrayToTextTable($rows)
+    {
+        $this->rows =& $rows;
+        $this->cs=array();
+        $this->rs=array();
+ 
+        if(!$xc = count($this->rows)) return false; 
+        $this->keys = array_keys($this->rows[0]);
+        $columns = count($this->keys);
+        
+        for($x=0; $x<$xc; $x++)
+            for($y=0; $y<$columns; $y++)    
+                $this->setMax($x, $y, $this->rows[$x][$this->keys[$y]]);
     }
+    
+    /**
+     * Show the headers using the key values of the array for the titles
+     * 
+     * @param bool $bool
+     */
+    public function showHeaders($bool)
+    {
+       if($bool) $this->setHeading(); 
+    } 
+    
+    /**
+     * Set the maximum width (number of characters) per column before truncating
+     * 
+     * @param int $maxWidth
+     */
+    public function setMaxWidth($maxWidth)
+    {
+        $this->mW = (int) $maxWidth;
+    }
+    
+    /**
+     * Set the maximum height (number of lines) per row before truncating
+     * 
+     * @param int $maxHeight
+     */
+    public function setMaxHeight($maxHeight)
+    {
+        $this->mH = (int) $maxHeight;
+    }
+    
+    /**
+     * Prints the data to a text table
+     *
+     * @param bool $return Set to 'true' to return text rather than printing
+     * @return mixed
+     */
+    public function render($return=false)
+    {
+        if($return) ob_start(null, 0, true); 
+  
+        $this->printLine();
+        $this->printHeading();
+        
+        $rc = count($this->rows);
+        for($i=0; $i<$rc; $i++) $this->printRow($i);
+        
+        $this->printLine(false);
 
-    // Build header bar
-
-    $bar = '+';
-    $header = '|';
-    $i=0;
-
-    foreach ($cell_lengths AS $fieldname => $length) {
-        $i++;
-        $bar .= str_pad('', $length+2, '-')."+";
-
-        $name = $i.") ".$fieldname;
-        if (strlen($name) > $length) {
-            // crop long headings
-
-            $name = substr($name, 0, $length-1);
+        if($return) {
+            $contents = ob_get_contents();
+            ob_end_clean();
+            return $contents;
         }
-        $header .= ' '.str_pad($name, $length, ' ', STR_PAD_RIGHT) . " |";
-
     }
 
-    $output = '';
-
-    $output .= $bar."\n";
-    $output .= $header."\n";
-
-    $output .= $bar."\n";
-
-    // Draw rows
-
-    foreach ($table AS $row) {
-        $output .= "|";
-
-        foreach ($row AS $key=>$cell) {
-            $output .= ' '.str_pad($cell, $cell_lengths[$key], ' ', STR_PAD_RIGHT) . " |";
-
+    private function setHeading()
+    {
+        $data = array();  
+        foreach($this->keys as $colKey => $value)
+        { 
+            $this->setMax(false, $colKey, $value);
+            $data[$colKey] = strtoupper($value);
         }
-        $output .= "\n";
+        if(!is_array($data)) return false;
+        $this->head = $data;
     }
 
-    $output .= $bar."\n";
+    private function printLine($nl=true)
+    {
+        print $this->pcen;
+        foreach($this->cs as $key => $val)
+            print $this->prow .
+                str_pad('', $val, $this->prow, STR_PAD_RIGHT) .
+                $this->prow .
+                $this->pcen;
+        if($nl) print "\n";
+    }
 
-    return $output;
+    private function printHeading()
+    {
+        if(!is_array($this->head)) return false;
 
+        print $this->pcol;
+        foreach($this->cs as $key => $val)
+            print ' '.
+                str_pad($this->head[$key], $val, ' ', STR_PAD_BOTH) .
+                ' ' .
+                $this->pcol;
+
+        print "\n";
+        $this->printLine();
+    }
+
+    private function printRow($rowKey)
+    {
+        // loop through each line
+        for($line=1; $line <= $this->rs[$rowKey]; $line++)
+        {
+            print $this->pcol;  
+            for($colKey=0; $colKey < count($this->keys); $colKey++)
+            { 
+                print " ";
+                print str_pad(substr($this->rows[$rowKey][$this->keys[$colKey]], ($this->mW * ($line-1)), $this->mW), $this->cs[$colKey], ' ', STR_PAD_RIGHT);
+                print " " . $this->pcol;          
+            }  
+            print  "\n";
+        }
+    }
+
+    private function setMax($rowKey, $colKey, &$colVal)
+    { 
+        $w = mb_strlen($colVal);
+        $h = 1;
+        if($w > $this->mW)
+        {
+            $h = ceil($w % $this->mW);
+            if($h > $this->mH) $h=$this->mH;
+            $w = $this->mW;
+        }
+ 
+        if(!isset($this->cs[$colKey]) || $this->cs[$colKey] < $w)
+            $this->cs[$colKey] = $w;
+
+        if($rowKey !== false && (!isset($this->rs[$rowKey]) || $this->rs[$rowKey] < $h))
+            $this->rs[$rowKey] = $h;
+    }
 }
 ?>
